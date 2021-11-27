@@ -79,13 +79,14 @@ def download_data_file(loc):
     lon.send_keys(loc[1])
 
     WaitforElement('//*[@id="testbuttondaily"]').click()
-    WaitforElement('//*[@id="exportCSV"]').click()
+    WebDriverWait(driver, 600).until(EC.element_to_be_clickable(
+        (By.XPATH, '//*[@id="exportCSV"]'))).click()
     WaitforElement('//*[@id="ordermore"]').click()
 
 
 with open('Data.csv', newline='') as csvfile:
     spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
     for index, row in enumerate(spamreader):
-        if(index > 5):
+        if(index > 1000):
             break
         download_data_file(row)
