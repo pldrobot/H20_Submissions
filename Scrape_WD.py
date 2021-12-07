@@ -20,8 +20,22 @@ def download_data_file(loc, driver):
     lon.clear()
     lon.send_keys(loc[0])
 
+    start_date = WaitforElement('//*[@id="datepickerstart"]', driver)
+    start_date.clear()
+    start_date.send_keys(loc[2])
+
+    end_date = WaitforElement('//*[@id="datepickerend"]', driver)
+    end_date.clear()
+    end_date.send_keys(loc[3])
+
+    # WebDriverWait(driver, 600).until(EC.element_to_be_clickable(
+    #     (By.XPATH, '//*[@id="exportCSV"]'))).click()
+    # down_csv = driver.find_element_by_xpath('//*[@id="exportCSV"]')
+    # while(not down_csv.is_enabled()):
+    #     WaitforElement('//*[@id="testbuttondaily"]', driver).click()
+    #     driver.implicitly_wait(5)
     WaitforElement('//*[@id="testbuttondaily"]', driver).click()
-    WebDriverWait(driver, 600).until(EC.element_to_be_clickable(
+    WebDriverWait(driver, 3600).until(EC.element_to_be_clickable(
         (By.XPATH, '//*[@id="exportCSV"]'))).click()
     WaitforElement('//*[@id="ordermore"]', driver).click()
 
@@ -50,14 +64,6 @@ def get_data(data, index):
     file_select = WaitforElement('//*[@id="userformat"]', driver)
     file_select = Select(file_select)
     file_select.select_by_visible_text('CSV')
-
-    start_date = WaitforElement('//*[@id="datepickerstart"]', driver)
-    start_date.clear()
-    start_date.send_keys("01/01/2021")
-
-    end_date = WaitforElement('//*[@id="datepickerend"]', driver)
-    end_date.clear()
-    end_date.send_keys("12/01/2021")
 
     WaitforElement('//*[@id="Temperatures"]/i', driver).click()
 
