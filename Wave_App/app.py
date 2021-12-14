@@ -1,28 +1,39 @@
 from h2o_wave import Q, ui, app, main, data, pack
 import folium
-import io
-import base64
-from matplotlib import colors
-import numpy as np
-import matplotlib.pyplot as plt
-from PIL import Image
-import time
+# import io
+# import base64
+# from matplotlib import colors
+# import numpy as np
+# import matplotlib.pyplot as plt
+# from PIL import Image
+# import time
+
+# from autoML import load_page
 
 async def viewError(q):
     q.page['error'] = ui.form_card(
-        box='2 5 8 1',
+        box='4 6 2 1',
         items=[
             ui.text_s('Fill All Blank Areas'),
         ],
     )
     await q.page.save()
 
+async def viewOutOfRange(q):
+    q.page['error'] = ui.form_card(
+        box='4 6 2 1',
+        items=[
+            ui.text_s('Values Are Out of Range'),
+        ],
+    )
+    await q.page.save()
+
 async def showMap(q:Q, lat, long):
-    m = folium.Map(location=[lat, long],tiles="Stamen Terrain", zoom_start=10)
+    m = folium.Map(location=[lat, long],tiles="Stamen Terrain", zoom_start=8)
     m.add_child(folium.LatLngPopup())
  
     q.page['map'] = ui.form_card(
-        box='1 5 10 5', 
+        box='1 6 10 5', 
         items=[
             ui.text('Map'),
             ui.frame(content=m._repr_html_(), height='400px'),
@@ -32,11 +43,12 @@ async def showMap(q:Q, lat, long):
 
 async def showResult(q,lat, long):
     q.page['result'] = ui.form_card(
-        box='1 5 10 2',
+        box='1 6 10 3',
         items=[
             ui.text_l('Selected Point...'),
             ui.text('Latitude: '+ str(lat)),
             ui.text('Longitude: ' + str(long)),
+            ui.text('Date: ' + str(q.args.date_boundaries)),
             ui.text('Severity: ' + '0.0')
         ],
     )
@@ -49,21 +61,27 @@ def deletePages(q):
 
 async def loadPage(q):
     q.page['inputLatLong'] = ui.form_card(
-        box='1 2 10 3',
+        box='1 2 10 4',
         items=[
-            ui.textbox(name='latitude', label='Latitude', required=True),
-            ui.textbox(name='longitude', label='Longitude', required=True),
-            ui.button(name='submit', label='Submit', primary=True),
-            ui.button(name='showmap', label='Show Map'),
+            ui.textbox(name='latitude', label='Latitude', required=True, placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
+            ui.textbox(name='longitude', label='Longitude', required=True, placeholder="Add a value in between -178.8026 and -65.2569 ", tooltip=""),
+            ui.date_picker(name='date_boundaries', label='Pick a Date', value='2021-01-07', min="2021-01-07", max="2021-12-01"),
+            ui.buttons([
+                ui.button(name='submit', label='Submit', primary=True),
+                ui.button(name='showmap', label='Show Map'),
+            ]),
         ],
     )
     if q.args.showmap:
         deletePages(q)
-        await showMap(q, 30.193626, -85.683029)
+        await showMap(q, 45.33, -107.95)
     if q.args.submit:
         deletePages(q)
         if q.args.latitude and q.args.longitude:
-            await showResult(q, float(q.args.latitude), float(-85.683029))
+            if ((float(q.args.latitude) > 17.9397) and (float(q.args.latitude) < 70.3306) and (float(q.args.longitude) > -178.8026) and (float(q.args.longitude) < -65.2569)):
+                await showResult(q, float(q.args.latitude), float(q.args.longitude))
+            else:
+                await viewOutOfRange(q)
         else:
             await viewError(q)
 
