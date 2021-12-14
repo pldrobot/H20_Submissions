@@ -1,0 +1,12 @@
+[App]
+Name = "challenge-wildfires-submission-Team PSR"
+Version = "1.0"
+Title = "Wildfire Challenge Submission Title Team PSR"
+Description = "Wildfire Challenge Submission Description Team PSR."
+LongDescription = ""
+Tags = ["WILDFIRES"]
+
+[Runtime]
+Module = "app"
+MemoryLimit = "5Gi"
+MemoryReservation = "1Gi"
