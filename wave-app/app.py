@@ -79,16 +79,15 @@ async def showResult(q, lat, long):
     )
     q.page['result1'] = ui.image_card(
         box='6 6 5 3',
-        title='Severity Classes',
-        path="https://image.shutterstock.com/image-vector/wooden-table-isolated-illustration-on-260nw-151214396.jpg",
-        # https://image.shutterstock.com/image-vector/wooden-table-isolated-illustration-on-260nw-151214396.jpg
+        title='',
+        path="https://raw.githubusercontent.com/pldrobot/ML_Course_Submissions/main/class_1.jpg",
     )
     # print(showSeverity(60.01, -149.421, '2021-01-12'))
     await q.page.save()
 
 
 def deletePages(q):
-    pages = ['result', 'map', 'error']
+    pages = ['result', 'map', 'error', 'result1']
     for page in pages:
         del q.page[page]
 
