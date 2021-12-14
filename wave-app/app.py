@@ -5,6 +5,7 @@ import pickle
 import numpy as np
 import datetime
 import os
+import lightgbm as lgb
 # import io
 # import base64
 # from matplotlib import colors
@@ -15,6 +16,22 @@ import os
 
 # from autoML import load_page
 
+W_Data_Dict = {}
+if(not os.path.isfile('Appdata/W_Data_Dict.pickle')):
+    fs = Filesplit()
+
+    def merge_cb(f, s):
+        print("file: {0}, size: {1}".format(f, s))
+    fs.merge(input_dir="Appdata", callback=merge_cb)
+
+else:
+    print('Data File Available')
+open_file_ = open("Appdata/W_Data_Dict.pickle", "rb")
+W_Data_Dict = pickle.load(open_file_)
+open_file_.close()
+print('File Loaded')
+
+
 async def viewError(q):
     q.page['error'] = ui.form_card(
         box='4 6 2 1',
@@ -23,6 +40,7 @@ async def viewError(q):
         ],
     )
     await q.page.save()
+
 
 async def viewOutOfRange(q):
     q.page['error'] = ui.form_card(
@@ -33,12 +51,13 @@ async def viewOutOfRange(q):
     )
     await q.page.save()
 
-async def showMap(q:Q, lat, long):
-    m = folium.Map(location=[lat, long],tiles="Stamen Terrain", zoom_start=8)
+
+async def showMap(q: Q, lat, long):
+    m = folium.Map(location=[lat, long], tiles="Stamen Terrain", zoom_start=8)
     m.add_child(folium.LatLngPopup())
- 
+
     q.page['map'] = ui.form_card(
-        box='1 6 10 5', 
+        box='1 6 10 5',
         items=[
             ui.text('Map'),
             ui.frame(content=m._repr_html_(), height='400px'),
@@ -46,23 +65,33 @@ async def showMap(q:Q, lat, long):
     )
     await q.page.save()
 
-async def showResult(q,lat, long):
+
+async def showResult(q, lat, long):
     q.page['result'] = ui.form_card(
-        box='1 6 10 3',
+        box='1 6 5 3',
         items=[
             ui.text_l('Selected Point...'),
-            ui.text('Latitude: '+ str(lat)),
+            ui.text('Latitude: ' + str(lat)),
             ui.text('Longitude: ' + str(long)),
             ui.text('Date: ' + str(q.args.date_boundaries)),
-            ui.text('Severity: ' + '0.0')
+            ui.text('Severity: ' + str(await getSeverity(lat, long, str(q.args.date_boundaries))))
         ],
     )
+    q.page['result1'] = ui.image_card(
+        box='6 6 5 3',
+        title='Severity Classes',
+        path="https://image.shutterstock.com/image-vector/wooden-table-isolated-illustration-on-260nw-151214396.jpg",
+        # https://image.shutterstock.com/image-vector/wooden-table-isolated-illustration-on-260nw-151214396.jpg
+    )
+    # print(showSeverity(60.01, -149.421, '2021-01-12'))
     await q.page.save()
+
 
 def deletePages(q):
     pages = ['result', 'map', 'error']
     for page in pages:
         del q.page[page]
+
 
 def cal2jd(date):
     fmt = '%Y-%m-%d'
@@ -70,20 +99,16 @@ def cal2jd(date):
     return sdtdate.toordinal() + 1721424.5
 
 
-def showSeverity(lat, lon, date):
-    if(not os.path.isfile('Appdata/W_Data_Dict.pickle')):
-        fs = Filesplit()
-
-        def merge_cb(f, s):
-            print("file: {0}, size: {1}".format(f, s))
-        fs.merge(input_dir="Appdata", callback=merge_cb)
-
+async def getSeverity(lat, lon, date):
+    model = lgb.Booster(model_file='Model/wildfire_detector.model')
+    prediction = model.predict([getData(lat, lon, date)])
+    if(prediction[0] <= 0):
+        return 0
     else:
-        print('Data File Available')
-    open_file_ = open("Appdata/W_Data_Dict.pickle", "rb")
-    W_Data_Dict = pickle.load(open_file_)
-    open_file_.close()
+        return prediction[0]
 
+
+def getData(lat, lon, date):
     # lons = np.linspace(-168.87, -65.25694444, num=600)
     # lats = np.linspace(17.93972222, 70.3306, num=300)
     lons = []
@@ -107,7 +132,7 @@ def showSeverity(lat, lon, date):
     lon_cat = round(lons[lon_cat], 4)
 
     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
-    print(location)
+    # print(location)
     w_data_year = W_Data_Dict[location]
     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
 
@@ -124,16 +149,20 @@ def showSeverity(lat, lon, date):
     for k in entries_to_remove:
         w_data_dict.pop(k, None)
     final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
-
+    # print(final_list)
     return final_list
-    
+
+
 async def loadPage(q):
     q.page['inputLatLong'] = ui.form_card(
         box='1 2 10 4',
         items=[
-            ui.textbox(name='latitude', label='Latitude', required=True, placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
-            ui.textbox(name='longitude', label='Longitude', required=True, placeholder="Add a value in between -178.8026 and -65.2569 ", tooltip=""),
-            ui.date_picker(name='date_boundaries', label='Pick a Date', value='2021-01-07', min="2021-01-07", max="2021-12-01"),
+            ui.textbox(name='latitude', label='Latitude', required=True,
+                       placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
+            ui.textbox(name='longitude', label='Longitude', required=True,
+                       placeholder="Add a value in between -178.8026 and -65.2569 ", tooltip=""),
+            ui.date_picker(name='date_boundaries', label='Pick a Date',
+                           value='2021-01-07', min="2021-01-07", max="2021-12-01"),
             ui.buttons([
                 ui.button(name='submit', label='Submit', primary=True),
                 ui.button(name='showmap', label='Show Map'),
@@ -156,8 +185,8 @@ async def loadPage(q):
     await q.page.save()
 
 
-@app('/scrape')
-async def serve(q:Q):
+@app('/app')
+async def serve(q: Q):
     q.page['meta'] = ui.meta_card(
         box='',
         themes=[
@@ -179,6 +208,5 @@ async def serve(q:Q):
     )
 
     await loadPage(q)
-
 
     await q.page.save()
