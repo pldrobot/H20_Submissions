@@ -131,3 +131,4 @@ dmypy.json
 *.sqlite
 *.zip
 W_Data_Dict.pickle
+W_Data_Dict.pick4

@@ -1,32 +1,14 @@
+from ctypes import alignment
 from h2o_wave import Q, ui, app, main, data, pack
 import folium
-from fsplit.filesplit import Filesplit
 import pickle
 import numpy as np
 import datetime
-import os
 import lightgbm as lgb
-# import io
-# import base64
-# from matplotlib import colors
-# import numpy as np
-# import matplotlib.pyplot as plt
-# from PIL import Image
-# import time
 
-# from autoML import load_page
 
 W_Data_Dict = {}
-if(not os.path.isfile('Appdata/W_Data_Dict.pickle')):
-    fs = Filesplit()
-
-    def merge_cb(f, s):
-        print("file: {0}, size: {1}".format(f, s))
-    fs.merge(input_dir="Appdata", callback=merge_cb)
-
-else:
-    print('Data File Available')
-open_file_ = open("Appdata/W_Data_Dict.pickle", "rb")
+open_file_ = open("Appdata/W_Data_Dict.pick4", "rb")
 W_Data_Dict = pickle.load(open_file_)
 open_file_.close()
 print('File Loaded')
@@ -59,7 +41,8 @@ async def showMap(q: Q, lat, long):
     q.page['map'] = ui.form_card(
         box='1 6 10 5',
         items=[
-            ui.text('Map'),
+            ui.text_m(
+                'Map: Click on the desired location to get geo coordinates.'),
             ui.frame(content=m._repr_html_(), height='400px'),
         ]
     )
@@ -108,8 +91,6 @@ async def getSeverity(lat, lon, date):
 
 
 def getData(lat, lon, date):
-    # lons = np.linspace(-168.87, -65.25694444, num=600)
-    # lats = np.linspace(17.93972222, 70.3306, num=300)
     lons = []
     lats = []
     keys = list(W_Data_Dict)
@@ -131,9 +112,9 @@ def getData(lat, lon, date):
     lon_cat = round(lons[lon_cat], 4)
 
     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
+    doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
     # print(location)
     w_data_year = W_Data_Dict[location]
-    doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
 
     w_data_dict = {}
     header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
@@ -156,6 +137,7 @@ async def loadPage(q):
     q.page['inputLatLong'] = ui.form_card(
         box='1 2 10 4',
         items=[
+            ui.text_xs("Wildfire prediction for a location in North American territory can be obtained by entering relevant longitude and latitude in following fields. Date entry is used to obtain prediction result for entered date. (Note: for development purposes dates in the range of 07/01/2021 to 01/12/2021 will only be accepted)"),
             ui.textbox(name='latitude', label='Latitude', required=True,
                        placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
             ui.textbox(name='longitude', label='Longitude', required=True,
@@ -184,16 +166,20 @@ async def loadPage(q):
     await q.page.save()
 
 
-@app('/app')
+@app('/')
 async def serve(q: Q):
     q.page['meta'] = ui.meta_card(
         box='',
         themes=[
             ui.theme(
                 name='my-awesome-theme',
-                primary='#13ebe7',
+                # primary='#13ebe7',
+                # text='#e8e1e1',
+                # card='#12123b',
+                # page='#070b1a',
+                primary='#FF9F1C',
                 text='#e8e1e1',
-                card='#12123b',
+                card='#000000',
                 page='#070b1a',
             )
         ],
@@ -201,11 +187,11 @@ async def serve(q: Q):
     )
     q.page['head'] = ui.header_card(
         box='1 1 10 1',
-        title='Wild Fire Check Application',
-        subtitle='Click and Check',
+        title='Defense Against WildFire',
+        subtitle='Get to know whether you need a firetruck today.',
         icon='ExploreData',
     )
 
     await loadPage(q)
-
+    print(q.app.initialized)
     await q.page.save()
