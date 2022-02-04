@@ -9,11 +9,12 @@ import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import firestore
 import json
+import requests
 
 cred = credentials.Certificate('nodemcu-tester-firebase-adminsdk-p8xun-4c3dfad99c.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
-
+url = 'https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(default)/documents/H2O/'
 
 # W_Data_Dict = {}
 # open_file_ = open("Appdata/W_Data_Dict.pick4", "rb")
@@ -163,13 +164,61 @@ async def getSeverity(q,lat, lon, date):
 #     # print(final_list)
 #     return final_list
 
+# def getData(lat, lon, date):
+#     meta_data = db.collection("H2O").document("DATA").get()
+#     meta_data = meta_data.to_dict()
+#     lats=meta_data["LATS"].split(' ')
+#     lons=meta_data["LONS"].split(' ')
+#     lats_get =[float(i) for i in lats]
+#     lons_get =[float(i)  for i in lons]
+
+#     lats = np.sort(np.array(lats_get))
+#     lat_cat = np.searchsorted(lats, lat)
+#     lat_cat = round(lats[lat_cat], 4)
+
+#     lons = np.sort(np.array(lons_get))
+#     lon_cat = np.searchsorted(lons, lon)
+#     lon_cat = round(lons[lon_cat], 4)
+
+#     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
+#     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
+#     print(location)
+#     w_data_year = db.collection("H2O").document(location).get()
+#     w_data_year = w_data_year.to_dict()
+
+#     if (w_data_year != None): 
+#         w_data_dict = {}
+#         header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
+#                 'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
+#         for i in range(0, 7):
+#             w_data = json.loads(w_data_year[str(doy-6+i)])
+#             for ind, val in enumerate(header[3:], start=3):
+#                 key = val+'_'+str(i)
+#                 w_data_dict[key] = float(w_data[ind])
+#         entries_to_remove = ('T2M_RANGE_0', 'QV2M_0', 'QV2M_1', 'T2M_RANGE_2', 'QV2M_2',
+#                             'QV2M_3', 'T2M_RANGE_4', 'T2M_RANGE_5', 'PRECTOTCORR_5', 'T2M_RANGE_6')
+#         for k in entries_to_remove:
+#             w_data_dict.pop(k, None)
+#         final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
+#         # print(final_list)
+#         return final_list
+
+#     else:
+#         return None
+
 def getData(lat, lon, date):
-    meta_data = db.collection("H2O").document("DATA").get()
-    meta_data = meta_data.to_dict()
-    lats=meta_data["LATS"].split(' ')
-    lons=meta_data["LONS"].split(' ')
-    lats_get =[float(i) for i in lats]
-    lons_get =[float(i)  for i in lons]
+    # meta_data = db.collection("H2O").document("DATA").get()
+    # meta_data = meta_data.to_dict()
+    x = requests.get(
+        "https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(default)/documents/H2O/DATA").json()
+    meta_data = {}
+    meta_data['LATS'] = x["fields"]["LATS"]["stringValue"]
+    meta_data['LONS'] = x["fields"]["LONS"]["stringValue"]
+
+    lats = meta_data["LATS"].split(' ')
+    lons = meta_data["LONS"].split(' ')
+    lats_get = [float(i) for i in lats]
+    lons_get = [float(i) for i in lons]
 
     lats = np.sort(np.array(lats_get))
     lat_cat = np.searchsorted(lats, lat)
@@ -182,28 +231,32 @@ def getData(lat, lon, date):
     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
     print(location)
-    w_data_year = db.collection("H2O").document(location).get()
-    w_data_year = w_data_year.to_dict()
 
-    if (w_data_year != None): 
+    w_data_year_req = requests.get(url+location).json()
+    if("error" in w_data_year_req):
+        return None
+    else:
+        w_data_year_req = w_data_year_req["fields"]
+        w_data_year = {}
+        for key in w_data_year_req:
+            w_data_year[key] = w_data_year_req[key]["stringValue"]
+        # w_data_year = db.collection("H2O").document(location).get()
+        # w_data_year = w_data_year.to_dict()
         w_data_dict = {}
         header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
-                'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
+                  'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
         for i in range(0, 7):
             w_data = json.loads(w_data_year[str(doy-6+i)])
             for ind, val in enumerate(header[3:], start=3):
                 key = val+'_'+str(i)
                 w_data_dict[key] = float(w_data[ind])
         entries_to_remove = ('T2M_RANGE_0', 'QV2M_0', 'QV2M_1', 'T2M_RANGE_2', 'QV2M_2',
-                            'QV2M_3', 'T2M_RANGE_4', 'T2M_RANGE_5', 'PRECTOTCORR_5', 'T2M_RANGE_6')
+                             'QV2M_3', 'T2M_RANGE_4', 'T2M_RANGE_5', 'PRECTOTCORR_5', 'T2M_RANGE_6')
         for k in entries_to_remove:
             w_data_dict.pop(k, None)
         final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
         # print(final_list)
         return final_list
-
-    else:
-        return None
 
 async def loadPage(q):
     q.page['inputLatLong'] = ui.form_card(
