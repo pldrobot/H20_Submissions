@@ -22,36 +22,17 @@ url = 'https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(de
 # open_file_.close()
 # print('File Loaded')
 
-async def viewError(q):
-    q.page['error'] = ui.form_card(
-        box='4 6 2 1',
-        items=[
-            ui.text_s('Fill All Blank Areas'),
-        ],
+async def displayError(q, message):
+    q.page['error'] = ui.preview_card(
+        name='preview_card',
+        box='1 6 10 1',
+        image='http://pldindustries.com/wave/istockphoto.jpg',
+        title=message,
     )
     await q.page.save()
-
-
-async def viewOutOfRange(q):
-    q.page['error'] = ui.form_card(
-        box='4 6 2 1',
-        items=[
-            ui.text_s('Values Are Out of Range'),
-        ],
-    )
-    await q.page.save()
-
-# async def NoWeatherDataError(q):
-#     q.page['error'] = ui.form_card(
-#         box='4 6 2 1',
-#         items=[
-#             ui.text_s('Sorry! Weather Data Not Available for the Selected Location'),
-#         ],
-#     )
-#     await q.page.save()
-
 
 async def showMap(q: Q, lat, long):
+    deletePages(q)
     m = folium.Map(location=[lat, long], tiles="Stamen Terrain", zoom_start=8)
     m.add_child(folium.LatLngPopup())
 
@@ -69,12 +50,7 @@ async def showResult(q, lat, long):
     sev = await getSeverity(q,lat, long, str(q.args.date_boundaries))
     if (sev is None):
         deletePages(q)
-        q.page['error'] = ui.form_card(
-            box='4 6 2 1',
-            items=[
-                ui.text_s('Sorry! Weather Data Not Available for the Selected Location'),
-            ],
-        )
+        await displayError(q,'Sorry! Weather Data Not Available for the Selected Location')
 
     else:
         q.page['result'] = ui.form_card(
@@ -97,7 +73,7 @@ async def showResult(q, lat, long):
 
 
 def deletePages(q):
-    pages = ['result', 'map', 'error', 'result1']
+    pages = ['result', 'map', 'error', 'result1','loadImage']
     for page in pages:
         del q.page[page]
 
@@ -121,90 +97,6 @@ async def getSeverity(q,lat, lon, date):
             return prediction[0]
 
 
-# def getData(lat, lon, date):
-
-#     lons = []
-#     lats = []
-#     keys = list(W_Data_Dict)
-#     for key in keys:
-#         temp = key.split(',')
-#         # lons.append(float(temp[0]))
-#         lats.append(float(temp[1]))
-#     lats = np.sort(np.array(lats))
-#     lat_cat = np.searchsorted(lats, lat)
-#     lat_cat = round(lats[lat_cat], 4)
-
-#     for key in keys:
-#         temp = key.split(',')
-#         if(float(temp[1]) == lat_cat):
-#             lons.append(float(temp[0]))
-
-#     lons = np.sort(np.array(lons))
-#     lon_cat = np.searchsorted(lons, lon)
-#     lon_cat = round(lons[lon_cat], 4)
-
-#     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
-#     # print(location)
-#     w_data_year = W_Data_Dict[location]
-#     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
-
-#     w_data_dict = {}
-#     header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
-#               'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
-#     for i in range(0, 7):
-#         w_data = w_data_year[doy-6+i]
-#         for ind, val in enumerate(header[3:], start=3):
-#             key = val+'_'+str(i)
-#             w_data_dict[key] = float(w_data[ind])
-#     entries_to_remove = ('T2M_RANGE_0', 'QV2M_0', 'QV2M_1', 'T2M_RANGE_2', 'QV2M_2',
-#                          'QV2M_3', 'T2M_RANGE_4', 'T2M_RANGE_5', 'PRECTOTCORR_5', 'T2M_RANGE_6')
-#     for k in entries_to_remove:
-#         w_data_dict.pop(k, None)
-#     final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
-#     # print(final_list)
-#     return final_list
-
-# def getData(lat, lon, date):
-#     meta_data = db.collection("H2O").document("DATA").get()
-#     meta_data = meta_data.to_dict()
-#     lats=meta_data["LATS"].split(' ')
-#     lons=meta_data["LONS"].split(' ')
-#     lats_get =[float(i) for i in lats]
-#     lons_get =[float(i)  for i in lons]
-
-#     lats = np.sort(np.array(lats_get))
-#     lat_cat = np.searchsorted(lats, lat)
-#     lat_cat = round(lats[lat_cat], 4)
-
-#     lons = np.sort(np.array(lons_get))
-#     lon_cat = np.searchsorted(lons, lon)
-#     lon_cat = round(lons[lon_cat], 4)
-
-#     location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
-#     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
-#     print(location)
-#     w_data_year = db.collection("H2O").document(location).get()
-#     w_data_year = w_data_year.to_dict()
-
-#     if (w_data_year != None): 
-#         w_data_dict = {}
-#         header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
-#                 'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
-#         for i in range(0, 7):
-#             w_data = json.loads(w_data_year[str(doy-6+i)])
-#             for ind, val in enumerate(header[3:], start=3):
-#                 key = val+'_'+str(i)
-#                 w_data_dict[key] = float(w_data[ind])
-#         entries_to_remove = ('T2M_RANGE_0', 'QV2M_0', 'QV2M_1', 'T2M_RANGE_2', 'QV2M_2',
-#                             'QV2M_3', 'T2M_RANGE_4', 'T2M_RANGE_5', 'PRECTOTCORR_5', 'T2M_RANGE_6')
-#         for k in entries_to_remove:
-#             w_data_dict.pop(k, None)
-#         final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
-#         # print(final_list)
-#         return final_list
-
-#     else:
-#         return None
 
 def getData(lat, lon, date):
     # meta_data = db.collection("H2O").document("DATA").get()
@@ -275,6 +167,13 @@ async def loadPage(q):
             ]),
         ],
     )
+
+    q.page['loadImage'] = ui.image_card(
+        box='1 6 10 5',
+        title='',
+        path="http://pldindustries.com/wave/loadImage2.jpg",
+    )
+
     if q.args.showmap:
         deletePages(q)
         await showMap(q, 45.33, -107.95)
@@ -284,9 +183,9 @@ async def loadPage(q):
             if ((float(q.args.latitude) > 17.9397) and (float(q.args.latitude) < 70.3306) and (float(q.args.longitude) > -178.8026) and (float(q.args.longitude) < -65.2569)):
                 await showResult(q, float(q.args.latitude), float(q.args.longitude))
             else:
-                await viewOutOfRange(q)
+                await displayError(q,'ERROR! Geolocations are Out of Range')
         else:
-            await viewError(q)
+            await displayError(q,'ERROR! Fill All Blank Areas')
 
     await q.page.save()
 
@@ -305,7 +204,7 @@ async def serve(q: Q):
                 primary='#FF9F1C',
                 text='#e8e1e1',
                 card='#000000',
-                page='#070b1a',
+                page='#000000',
             )
         ],
         theme='my-awesome-theme'
@@ -314,7 +213,23 @@ async def serve(q: Q):
         box='1 1 10 1',
         title='Defense Against WildFire',
         subtitle='Get to know whether you need a firetruck today.',
-        icon='ExploreData',
+        image='http://pldindustries.com/wave/logo.png',
+    )
+
+    caption = '''![PSR-logo](http://pldindustries.com/wave/logo_footer-1.png)<br>
+    Developed By Team PSR.'''
+    q.page['footer'] = ui.footer_card(
+        box='1 11 10 2',
+        caption=caption,
+        items=[
+            ui.inline(justify='end', items=[
+                ui.links(label='Contact Us', width='200px', items=[
+                    ui.link(label='Shamil Prematunga', path='https://www.linkedin.com/in/shamil-prematunga-139b51158/', target='_blank'),
+                    ui.link(label='Pasan Dharmasiri', path='https://www.linkedin.com/in/pasanld/', target='_blank'),
+                    ui.link(label='Ranush Wickramarathne', path='https://www.linkedin.com/in/ranushw/', target='_blank'),
+                ]),
+            ]),
+        ]
     )
 
     await loadPage(q)
