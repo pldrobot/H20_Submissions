@@ -220,6 +220,11 @@ async def serve(q: Q):
         title='Defense Against WildFire',
         subtitle='Get to know whether you need a firetruck today.',
         image='http://pldindustries.com/wave/logo.png',
+        items=[
+            ui.button(name='btn1', label='History'),
+            ui.button(name='btn2', label='Limitations'),
+            ui.link(label='Demo', path='https://drive.google.com/file/d/1JY7HvR3_8TvVaUY7dUy6bf53rLik9dum/view?usp=sharing', target='_blank'),
+        ],
     )
 
     caption = '''![PSR-logo](http://pldindustries.com/wave/logo_footer-1.png)<br>
