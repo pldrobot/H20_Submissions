@@ -180,12 +180,18 @@ async def loadPage(q):
     if q.args.submit:
         deletePages(q)
         if q.args.latitude and q.args.longitude:
-            if ((float(q.args.latitude) > 17.9397) and (float(q.args.latitude) < 70.3306) and (float(q.args.longitude) > -178.8026) and (float(q.args.longitude) < -65.2569)):
-                await showResult(q, float(q.args.latitude), float(q.args.longitude))
+            try:
+                lat= float(q.args.latitude)
+                lon = float(q.args.longitude)
+            except:
+                await displayError(q,'ERROR! Enter geolocations in valid format')
             else:
-                await displayError(q,'ERROR! Geolocations are Out of Range')
+                if ((float(q.args.latitude) > 17.9397) and (float(q.args.latitude) < 70.3306) and (float(q.args.longitude) > -178.8026) and (float(q.args.longitude) < -65.2569)):
+                    await showResult(q, float(q.args.latitude), float(q.args.longitude))
+                else:
+                    await displayError(q,'ERROR! Geolocations are out of range')
         else:
-            await displayError(q,'ERROR! Fill All Blank Areas')
+            await displayError(q,'ERROR! Fill all blank areas')
 
     await q.page.save()
 
