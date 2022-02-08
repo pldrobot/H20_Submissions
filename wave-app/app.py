@@ -11,6 +11,8 @@ from firebase_admin import firestore
 import json
 import requests
 
+history = []
+
 cred = credentials.Certificate('nodemcu-tester-firebase-adminsdk-p8xun-4c3dfad99c.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
@@ -60,7 +62,8 @@ async def showResult(q, lat, long):
                 ui.text('Latitude: ' + str(lat)),
                 ui.text('Longitude: ' + str(long)),
                 ui.text('Date: ' + str(q.args.date_boundaries)),
-                ui.text('Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+                ui.text('Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries)))),
+                ui.button(name='historyBtn', label='Show History',primary=True),
             ],
         )
         q.page['result1'] = ui.image_card(
@@ -68,12 +71,14 @@ async def showResult(q, lat, long):
             title='',
             path="https://raw.githubusercontent.com/pldrobot/ML_Course_Submissions/main/class_1.jpg",
         )
+        history.append('Latitude: ' + str(lat) + " | " + 'Longitude: ' + str(long) + " | " + 'Date: ' + str(q.args.date_boundaries) + " | " + 'Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+        
     # print(showSeverity(60.01, -149.421, '2021-01-12'))
     await q.page.save()
 
 
 def deletePages(q):
-    pages = ['result', 'map', 'error', 'result1','loadImage']
+    pages = ['result', 'map', 'error', 'result1','loadImage','about','history']
     for page in pages:
         del q.page[page]
 
@@ -221,8 +226,7 @@ async def serve(q: Q):
         subtitle='Get to know whether you need a firetruck today.',
         image='http://pldindustries.com/wave/logo.png',
         items=[
-            ui.button(name='btn1', label='History'),
-            ui.button(name='btn2', label='Limitations'),
+            ui.button(name='aboutBtn', label='About'),
             ui.link(label='Demo', path='https://drive.google.com/file/d/1JY7HvR3_8TvVaUY7dUy6bf53rLik9dum/view?usp=sharing', target='_blank'),
         ],
     )
@@ -243,6 +247,39 @@ async def serve(q: Q):
         ]
     )
 
-    await loadPage(q)
-    print(q.app.initialized)
+    if(q.args.historyBtn):
+        displayStr = ""
+        if(len(history) == 0):
+            displayStr = displayStr + "History data unavailable"
+        else: 
+            for data in history:
+                displayStr = displayStr + data + '<br>'
+        q.page['history'] = ui.form_card(
+            box='1 6 10 5',
+            items=[
+                ui.text_xl('Checked Data:'),
+                ui.text_l(displayStr),
+            ],
+        )
+        print(displayStr)
+
+    elif (q.args.aboutBtn):
+        q.page['about'] = ui.form_card(
+            box='1 6 10 5',
+            items=[
+                ui.text_xl('About:'),
+                ui.text_l('''
+This application has been mainly developed to demonstrate the capability of effectively predicting wildlife using certain weather parameters and previous wildfire related data.
+
+Please note that following limitations are set in the application. 
+
+1. US region’s dataset has ONLY been used to train the ML model thus geo-points that can be entered are only within a limited area. (Latitude: 17.9397 to 70.3306 | Longitude: -178.8026 to -65.2569)
+
+2. Automatic LIVE weather data acquisition function hasn’t been implemented. Hence, valid dates which can be entered to the app is from 07.01.2021 to 01.12.2021
+                '''),
+            ],
+        )
+    else:
+        await loadPage(q)
+        print(q.app.initialized)
     await q.page.save()
