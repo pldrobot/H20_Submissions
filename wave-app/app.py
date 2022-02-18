@@ -10,8 +10,13 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 import json
 import requests
+from geopy.distance import distance
+import pandas as pd
 
-history = []
+# history = []
+latitude_list = []
+longitude_list = []
+severity_list = []
 
 cred = credentials.Certificate('nodemcu-tester-firebase-adminsdk-p8xun-4c3dfad99c.json')
 firebase_admin.initialize_app(cred)
@@ -71,14 +76,17 @@ async def showResult(q, lat, long):
             title='',
             path="https://raw.githubusercontent.com/pldrobot/ML_Course_Submissions/main/class_1.jpg",
         )
-        history.append('Latitude: ' + str(lat) + " | " + 'Longitude: ' + str(long) + " | " + 'Date: ' + str(q.args.date_boundaries) + " | " + 'Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
-        
+        # history.append('Latitude: ' + str(lat) + " | " + 'Longitude: ' + str(long) + " | " + 'Date: ' + str(q.args.date_boundaries) + " | " + 'Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+        latitude_list.append(lat)
+        longitude_list.append(long)
+        severity_list.append(str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+
     # print(showSeverity(60.01, -149.421, '2021-01-12'))
     await q.page.save()
 
 
 def deletePages(q):
-    pages = ['result', 'map', 'error', 'result1','loadImage','about','history']
+    pages = ['result', 'map', 'error', 'result1','loadImage','about','history', 'history_error', 'history_map','history_tab']
     for page in pages:
         del q.page[page]
 
@@ -101,34 +109,31 @@ async def getSeverity(q,lat, lon, date):
         else:
             return prediction[0]
 
-
-
 def getData(lat, lon, date):
-    # meta_data = db.collection("H2O").document("DATA").get()
-    # meta_data = meta_data.to_dict()
+    upload_list = []
+    dist_list = []
+ 
     x = requests.get(
-        "https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(default)/documents/H2O/DATA").json()
-    meta_data = {}
-    meta_data['LATS'] = x["fields"]["LATS"]["stringValue"]
-    meta_data['LONS'] = x["fields"]["LONS"]["stringValue"]
-
-    lats = meta_data["LATS"].split(' ')
-    lons = meta_data["LONS"].split(' ')
-    lats_get = [float(i) for i in lats]
-    lons_get = [float(i) for i in lons]
-
-    lats = np.sort(np.array(lats_get))
-    lat_cat = np.searchsorted(lats, lat)
-    lat_cat = round(lats[lat_cat], 4)
-
-    lons = np.sort(np.array(lons_get))
-    lon_cat = np.searchsorted(lons, lon)
-    lon_cat = round(lons[lon_cat], 4)
-
-    location = str('%.4f' % lon_cat)+','+str('%.4f' % lat_cat)
+        "https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(default)/documents/H2O/DATA_LOC").json()
+    meta_data = x["fields"]["DATA_LOC"]["stringValue"]
+    meta_data = meta_data.replace("[[", "")
+    meta_data = meta_data.replace("]]", "")
+    meta_data = meta_data.replace("], [", "|")
+    keys = meta_data.split("|")
+    for key in keys:
+        upload_list.append(list(np.fromstring(key, dtype=np.float64, sep=',')))
+ 
+    for loc in upload_list:
+        dist_list.append(distance((loc[1], loc[0]), (lat, lon)).km)
+ 
+    min_val = min(dist_list)
+    out_loc = upload_list[dist_list.index(min_val)]
+    print(out_loc)
+ 
+    location = str('%.4f' % out_loc[0])+','+str('%.4f' % out_loc[1])
     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
     print(location)
-
+ 
     w_data_year_req = requests.get(url+location).json()
     if("error" in w_data_year_req):
         return None
@@ -226,6 +231,7 @@ async def serve(q: Q):
         subtitle='Get to know whether you need a firetruck today.',
         image='http://pldindustries.com/wave/logo.png',
         items=[
+            ui.button(name='showHistoryBtn', label='History'),
             ui.button(name='aboutBtn', label='About'),
             ui.link(label='Demo', path='https://drive.google.com/file/d/1JY7HvR3_8TvVaUY7dUy6bf53rLik9dum/view?usp=sharing', target='_blank'),
         ],
@@ -247,21 +253,54 @@ async def serve(q: Q):
         ]
     )
 
-    if(q.args.historyBtn):
-        displayStr = ""
-        if(len(history) == 0):
-            displayStr = displayStr + "History data unavailable"
-        else: 
-            for data in history:
-                displayStr = displayStr + data + '<br>'
-        q.page['history'] = ui.form_card(
-            box='1 6 10 5',
-            items=[
-                ui.text_xl('Checked Data:'),
-                ui.text_l(displayStr),
-            ],
+    if(q.args.historyBtn or q.args.showHistoryBtn):
+        deletePages(q)
+        df_history = pd.DataFrame(
+            {
+                "Lat":latitude_list,
+                "Long":longitude_list,
+                "Score":severity_list 
+            }
         )
-        print(displayStr)
+        locations = df_history[['Lat', 'Long']]
+        locationlist = locations.values.tolist()
+        if (len(locationlist) == 0):
+            q.page['history_error'] = ui.form_card(
+                box='1 6 10 4',
+                items=[
+                    ui.text_xl('History data unavailable'),
+                ],
+            )
+        else:
+            map = folium.Map(location=[45.33, -107.95], zoom_start=6)
+            for point in range(0, len(locationlist)):
+                folium.Marker(locationlist[point], popup=df_history['Score'][point]).add_to(map)
+            q.page['history_map'] = ui.form_card(
+                box='1 6 10 4',
+                items=[
+                    ui.frame(content=map._repr_html_(), height='400px'),
+                ]
+            )
+        q.page['history_tab'] = ui.form_card(
+            box='1 10 10 1',
+            items=[
+                ui.inline(justify='end', items=[
+                    ui.button(name='clearhistorytab', label='Clear History',primary=True),
+                    ui.button(name='exithistorytab', label='Exit',primary=False),
+                ])
+            ]
+        )
+
+    elif (q.args.exithistorytab):
+        deletePages(q)
+        await loadPage(q)
+
+    elif (q.args.clearhistorytab):
+        deletePages(q)
+        latitude_list.clear()
+        longitude_list.clear()
+        severity_list.clear()
+        await loadPage(q)
 
     elif (q.args.aboutBtn):
         q.page['about'] = ui.form_card(
