@@ -1,33 +1,31 @@
 from ctypes import alignment
+from turtle import color
 from h2o_wave import Q, ui, app, main, data, pack
+from firebase_admin import credentials
+from firebase_admin import firestore
+from geopy.distance import distance
+from geopy.geocoders import Nominatim
+
+import pandas as pd
 import folium
-# import pickle
 import numpy as np
 import datetime
 import lightgbm as lgb
 import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import firestore
 import json
 import requests
-from geopy.distance import distance
-import pandas as pd
 
-# history = []
 latitude_list = []
 longitude_list = []
 severity_list = []
+severity_clr = []
 
 cred = credentials.Certificate('nodemcu-tester-firebase-adminsdk-p8xun-4c3dfad99c.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 url = 'https://firestore.googleapis.com/v1/projects/nodemcu-tester/databases/(default)/documents/H2O/'
 
-# W_Data_Dict = {}
-# open_file_ = open("Appdata/W_Data_Dict.pick4", "rb")
-# W_Data_Dict = pickle.load(open_file_)
-# open_file_.close()
-# print('File Loaded')
+postalData = pd.read_csv('ZipUS.csv',index_col="PostalCode")
 
 async def displayError(q, message):
     q.page['error'] = ui.preview_card(
@@ -40,13 +38,13 @@ async def displayError(q, message):
 
 async def showMap(q: Q, lat, long):
     deletePages(q)
-    m = folium.Map(location=[lat, long], tiles="Stamen Terrain", zoom_start=8)
+    m = folium.Map(location=[lat, long], tiles="Stamen Terrain", zoom_start=4)
     m.add_child(folium.LatLngPopup())
 
     q.page['map'] = ui.form_card(
         box='1 6 10 5',
         items=[
-            ui.text_m('Map: Click on the desired location to get geo coordinates.'),
+            ui.text('Map: Click on the desired location to get geo coordinates to predict wildfire severity.'),
             ui.frame(content=m._repr_html_(), height='400px'),
         ]
     )
@@ -76,12 +74,29 @@ async def showResult(q, lat, long):
             title='',
             path="https://raw.githubusercontent.com/pldrobot/ML_Course_Submissions/main/class_1.jpg",
         )
-        # history.append('Latitude: ' + str(lat) + " | " + 'Longitude: ' + str(long) + " | " + 'Date: ' + str(q.args.date_boundaries) + " | " + 'Severity: ' + str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+        
+        severity_value = await getSeverity(q,lat, long, str(q.args.date_boundaries))
         latitude_list.append(lat)
         longitude_list.append(long)
-        severity_list.append(str(await getSeverity(q,lat, long, str(q.args.date_boundaries))))
+        severity_list.append(str(severity_value))
 
-    # print(showSeverity(60.01, -149.421, '2021-01-12'))
+        if (severity_value == 0):
+            severity_clr.append("darkgreen")
+        elif (0< severity_value and 0.25>severity_value):
+            severity_clr.append("green")
+        elif (0.25<= severity_value and 10>severity_value):
+            severity_clr.append("lightgreen")
+        elif (10<= severity_value and 100>severity_value):
+            severity_clr.append("orange")
+        elif (100<= severity_value and 300>severity_value):
+            severity_clr.append("pink")
+        elif (300<= severity_value and 1000>severity_value):
+            severity_clr.append("lightred")
+        elif (1000<= severity_value and 5000>severity_value):
+            severity_clr.append("red")
+        else:
+            severity_clr.append("darkred")
+
     await q.page.save()
 
 
@@ -109,6 +124,7 @@ async def getSeverity(q,lat, lon, date):
         else:
             return prediction[0]
 
+
 def getData(lat, lon, date):
     upload_list = []
     dist_list = []
@@ -128,11 +144,11 @@ def getData(lat, lon, date):
  
     min_val = min(dist_list)
     out_loc = upload_list[dist_list.index(min_val)]
-    print(out_loc)
+    # print(out_loc)
  
     location = str('%.4f' % out_loc[0])+','+str('%.4f' % out_loc[1])
     doy = datetime.datetime.strptime(date, '%Y-%m-%d').timetuple().tm_yday
-    print(location)
+    # print(location)
  
     w_data_year_req = requests.get(url+location).json()
     if("error" in w_data_year_req):
@@ -142,8 +158,7 @@ def getData(lat, lon, date):
         w_data_year = {}
         for key in w_data_year_req:
             w_data_year[key] = w_data_year_req[key]["stringValue"]
-        # w_data_year = db.collection("H2O").document(location).get()
-        # w_data_year = w_data_year.to_dict()
+
         w_data_dict = {}
         header = ['YEAR', 'MO', 'DY', 'T2M', 'T2MDEW', 'T2MWET', 'TS', 'T2M_RANGE', 'T2M_MAX', 'T2M_MIN', 'QV2M', 'RH2M',
                   'PRECTOTCORR', 'PS', 'WS10M', 'WS10M_MAX', 'WS10M_MIN', 'WS10M_RANGE', 'WS50M', 'WS50M_MAX', 'WS50M_MIN']
@@ -157,14 +172,33 @@ def getData(lat, lon, date):
         for k in entries_to_remove:
             w_data_dict.pop(k, None)
         final_list = [lon, lat, cal2jd(date)]+list(w_data_dict.values())
-        # print(final_list)
+
         return final_list
+
+def convertZip(zip_value):
+    try:
+        zip = float(zip_value)
+    except:
+        return "None"
+    else:
+        if (zip in postalData.index):
+            address = ""
+            if (str(postalData.Town[zip]) != "nan"):
+                address = address + str(postalData.Town[zip])
+            elif (str(postalData.Region[zip]) != "nan"):
+                address = address + ", " + str(postalData.Region[zip])
+            elif (str(postalData.Area[zip]) != "nan"):
+                address = address + ", " + str(postalData.Area[zip])
+            location = [postalData.Latitude[zip],postalData.Longitude[zip], address]
+            return location
+        else:
+            return "None"
 
 async def loadPage(q):
     q.page['inputLatLong'] = ui.form_card(
-        box='1 2 10 4',
+        box='1 2 6 4',
         items=[
-            ui.text_xs("Wildfire prediction for a location in North American territory can be obtained by entering relevant longitude and latitude in following fields. Date entry is used to obtain prediction result for entered date. (Note: for development purposes dates in the range of 07/01/2021 to 01/12/2021 will only be accepted)"),
+            ui.text_s("Wildfire prediction for a location in North American territory can be obtained by entering relevant longitude and latitude in following fields. Date entry is used to obtain prediction result for entered date. (Note: for development purposes dates in the range of 07/01/2021 to 01/12/2021 will only be accepted)"),
             ui.textbox(name='latitude', label='Latitude', required=True,
                        placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
             ui.textbox(name='longitude', label='Longitude', required=True,
@@ -172,9 +206,23 @@ async def loadPage(q):
             ui.date_picker(name='date_boundaries', label='Pick a Date',
                            value='2021-01-07', min="2021-01-07", max="2021-12-01"),
             ui.buttons([
-                ui.button(name='submit', label='Submit', primary=True),
-                ui.button(name='showmap', label='Show Map'),
+                ui.button(name='submit', label='Predict', primary=True),
+                # ui.button(name='showmap', label='Mark on the Map',primary=True),
             ]),
+        ],
+    )
+
+    q.page['inputPostalCode'] = ui.form_card(
+        box='7 2 4 4',
+        items=[
+            ui.text_l("Know the Geolocation?"),
+            ui.textbox(name='postalCode', label='Postal/Zip Code', required=True,
+                       placeholder="Only in USA Region ", tooltip=""),
+            ui.buttons([
+                ui.button(name='convert', label='Convert Zip Code', primary=True)
+            ]),
+            ui.text("-- OR --"),
+            ui.button(name='showmap', label='Mark on the Map', primary=True),
         ],
     )
 
@@ -203,6 +251,102 @@ async def loadPage(q):
         else:
             await displayError(q,'ERROR! Fill all blank areas')
 
+    if q.args.convert:
+        result = convertZip(q.args.postalCode)
+        del q.page['inputPostalCode']
+
+        if (result == "None"):
+            q.page['inputPostalCode'] = ui.form_card(
+                box='7 2 4 4',
+                items=[
+                    ui.text_l("Know the Geolocation?"),
+                    ui.textbox(name='postalCode', label='Postal/Zip Code', required=True,
+                            placeholder="Only in USA Region ", tooltip=""),
+                    ui.buttons([
+                        ui.button(name='convert', label='Convert Zip Code', primary=True)
+                    ]),
+                    ui.text("Invalid Data"),
+                    ui.text("-- OR --"),
+                    ui.button(name='showmap', label='Mark on the Map',primary=True),
+                ],
+            )
+        else:
+            del q.page['inputLatLong']
+            q.page['inputLatLong'] = ui.form_card(
+                box='1 2 6 4',
+                items=[
+                    ui.text_s("Wildfire prediction for a location in North American territory can be obtained by entering relevant longitude and latitude in following fields. Date entry is used to obtain prediction result for entered date. (Note: for development purposes dates in the range of 07/01/2021 to 01/12/2021 will only be accepted)"),
+                    ui.textbox(name='latitude', label='Latitude', required=True,
+                            value=str(result[0]), tooltip=""),
+                    ui.textbox(name='longitude', label='Longitude', required=True,
+                            value=str(result[1]), tooltip=""),
+                    ui.date_picker(name='date_boundaries', label='Pick a Date',
+                                value='2021-01-07', min="2021-01-07", max="2021-12-01"),
+                    ui.buttons([
+                        ui.button(name='submit', label='Predict', primary=True),
+                        ui.button(name='clear_form', label='Clear'),
+                    ]),
+                ],
+            )
+            q.page['inputPostalCode'] = ui.form_card(
+                box='7 2 4 4',
+                items=[
+                    ui.text_l("Know the Geolocation?"),
+                    ui.textbox(name='postalCode', label='Postal/Zip Code', required=True,
+                            placeholder="Only in USA Region ", tooltip=""),
+                    ui.buttons([
+                        ui.button(name='convert', label='Convert Zip Code', primary=True)
+                    ]),
+                    ui.text("Address: " + str(result[2])),
+                    ui.text("-- OR --"),
+                    ui.button(name='showmap', label='Mark on the Map', primary=True),
+                ],
+            )
+            deletePages(q)
+            df = pd.DataFrame({'lat':[result[0]], 'lon':[result[1]], 'name':[result[2]]})
+            m = folium.Map(location=[df.iloc[0]['lat'], df.iloc[0]['lon']], tiles="Stamen Terrain", zoom_start=4)
+            folium.Marker(location = [df.iloc[0]['lat'], df.iloc[0]['lon']], popup=df.iloc[0]['name'],).add_to(m)
+
+            q.page['map'] = ui.form_card(
+                box='1 6 10 5',
+                items=[
+                    ui.text('This is the point you have selected.'),
+                    ui.frame(content=m._repr_html_(), height='400px'),
+                ]
+            )
+    if q.args.clear_form:
+        result = "None"
+        q.page['inputLatLong'] = ui.form_card(
+            box='1 2 6 4',
+            items=[
+                ui.text_s("Wildfire prediction for a location in North American territory can be obtained by entering relevant longitude and latitude in following fields. Date entry is used to obtain prediction result for entered date. (Note: for development purposes dates in the range of 07/01/2021 to 01/12/2021 will only be accepted)"),
+                ui.textbox(name='latitude', label='Latitude', required=True,
+                        placeholder="Add a value in between 17.9397 and 70.3306 ", tooltip=""),
+                ui.textbox(name='longitude', label='Longitude', required=True,
+                        placeholder="Add a value in between -178.8026 and -65.2569 ", tooltip=""),
+                ui.date_picker(name='date_boundaries', label='Pick a Date',
+                            value='2021-01-07', min="2021-01-07", max="2021-12-01"),
+                ui.buttons([
+                    ui.button(name='submit', label='Predict', primary=True),
+                    # ui.button(name='showmap', label='Pin on the Map', primary=True),
+                ]),
+            ],
+        )
+
+        q.page['inputPostalCode'] = ui.form_card(
+            box='7 2 4 4',
+            items=[
+                ui.text_l("Know the Geolocation?"),
+                ui.textbox(name='postalCode', label='Postal/Zip Code', required=True,
+                        placeholder="Only in USA Region ", tooltip=""),
+                ui.buttons([
+                    ui.button(name='convert', label='Convert Zip Code', primary=True)
+                ]),
+                ui.text("-- OR --"),
+                ui.button(name='showmap', label='Mark on the Map', primary=True),
+            ],
+        )
+
     await q.page.save()
 
 
@@ -212,11 +356,7 @@ async def serve(q: Q):
         box='',
         themes=[
             ui.theme(
-                name='my-awesome-theme',
-                # primary='#13ebe7',
-                # text='#e8e1e1',
-                # card='#12123b',
-                # page='#070b1a', 
+                name='my-awesome-theme', 
                 primary='#FF9F1C',
                 text='#e8e1e1',
                 card='#000000',
@@ -231,9 +371,10 @@ async def serve(q: Q):
         subtitle='Get to know whether you need a firetruck today.',
         image='http://pldindustries.com/wave/logo.png',
         items=[
+            ui.button(name='refreshBtn', label='Refresh'),
             ui.button(name='showHistoryBtn', label='History'),
             ui.button(name='aboutBtn', label='About'),
-            ui.link(label='Demo', path='https://drive.google.com/file/d/1JY7HvR3_8TvVaUY7dUy6bf53rLik9dum/view?usp=sharing', target='_blank'),
+            ui.link(label='Demo', path='https://drive.google.com/file/d/1nmo7erS0tv_OUt_e4FngjLXIgR9WPo5I/view?usp=sharing', target='_blank'),
         ],
     )
 
@@ -259,7 +400,8 @@ async def serve(q: Q):
             {
                 "Lat":latitude_list,
                 "Long":longitude_list,
-                "Score":severity_list 
+                "Score":severity_list,
+                "Color": severity_clr
             }
         )
         locations = df_history[['Lat', 'Long']]
@@ -272,9 +414,10 @@ async def serve(q: Q):
                 ],
             )
         else:
-            map = folium.Map(location=[45.33, -107.95], zoom_start=6)
+            map = folium.Map(location=[45.33, -107.95], zoom_start=4)
             for point in range(0, len(locationlist)):
-                folium.Marker(locationlist[point], popup=df_history['Score'][point]).add_to(map)
+                # print(locationlist[point])
+                folium.Marker(locationlist[point], popup=df_history['Score'][point], icon=folium.Icon(color=df_history["Color"][point])).add_to(map)
             q.page['history_map'] = ui.form_card(
                 box='1 6 10 4',
                 items=[
@@ -300,6 +443,7 @@ async def serve(q: Q):
         latitude_list.clear()
         longitude_list.clear()
         severity_list.clear()
+        severity_clr.clear()
         await loadPage(q)
 
     elif (q.args.aboutBtn):
@@ -307,18 +451,24 @@ async def serve(q: Q):
             box='1 6 10 5',
             items=[
                 ui.text_xl('About:'),
-                ui.text_l('''
+                ui.text('''
 This application has been mainly developed to demonstrate the capability of effectively predicting wildlife using certain weather parameters and previous wildfire related data.
 
 Please note that following limitations are set in the application. 
 
-1. US region’s dataset has ONLY been used to train the ML model thus geo-points that can be entered are only within a limited area. (Latitude: 17.9397 to 70.3306 | Longitude: -178.8026 to -65.2569)
+1. US region dataset has ONLY been used to train the ML model thus geo-points that can be entered are only within a limited area. (Latitude: 17.9397 to 70.3306 | Longitude: -178.8026 to -65.2569)
 
-2. Automatic LIVE weather data acquisition function hasn’t been implemented. Hence, valid dates which can be entered to the app is from 07.01.2021 to 01.12.2021
+2. Automatic LIVE weather data acquisition function has not been implemented. Hence, valid dates which can be entered to the app is from 07.01.2021 to 01.12.2021
                 '''),
+                ui.text_xl('Data Collection:'),
+                ui.text('The data collected via two sources to train the model.'),
+                ui.link(label='1. US Wildfire Data Collection', path='https://www.kaggle.com/rtatman/188-million-us-wildfires', target='_blank'),
+                ui.link(label='2. Power Nasa Data', path='https://power.larc.nasa.gov/data-access-viewer/', target='_blank'),
             ],
         )
+    elif (q.args.refreshBtn):  
+        await loadPage(q)
     else:
         await loadPage(q)
-        print(q.app.initialized)
+        # print(q.app.initialized)
     await q.page.save()
