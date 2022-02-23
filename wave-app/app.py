@@ -185,9 +185,9 @@ def convertZip(zip_value):
             address = ""
             if (str(postalData.Town[zip]) != "nan"):
                 address = address + str(postalData.Town[zip])
-            elif (str(postalData.Region[zip]) != "nan"):
+            if (str(postalData.Region[zip]) != "nan"):
                 address = address + ", " + str(postalData.Region[zip])
-            elif (str(postalData.Area[zip]) != "nan"):
+            if (str(postalData.Area[zip]) != "nan"):
                 address = address + ", " + str(postalData.Area[zip])
             location = [postalData.Latitude[zip],postalData.Longitude[zip], address]
             return location
@@ -374,7 +374,7 @@ async def serve(q: Q):
             ui.button(name='refreshBtn', label='Refresh'),
             ui.button(name='showHistoryBtn', label='History'),
             ui.button(name='aboutBtn', label='About'),
-            ui.link(label='Demo', path='https://drive.google.com/file/d/1nmo7erS0tv_OUt_e4FngjLXIgR9WPo5I/view?usp=sharing', target='_blank'),
+            ui.link(label='Demo', path='https://drive.google.com/file/d/1ku94g6s0lCYsipLuMcTtIOL06Sl435Ek/view?usp=sharing', target='_blank'),
         ],
     )
 
